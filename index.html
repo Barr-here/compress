@@ -1,0 +1,563 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ciutkan: kompres ukuran video, resolusi tetap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #E7EAEF;
+    --panel: #F8F9FB;
+    --ink: #1C2330;
+    --muted: #586174;
+    --line: #C9CFD9;
+    --accent: #2E3ED1;
+    --good: #0B7A57;
+    --warn: #8F5400;
+    --bad: #B3261E;
+    --film: #222A38;
+    --cell: #3C4659;
+    --fill: #8B98FF;
+    --display: 'Bricolage Grotesque', system-ui, sans-serif;
+    --body: 'Figtree', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 400 16px/1.55 var(--body);
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 26px 20px 90px; }
+  .brand { font: 800 21px/1 var(--display); letter-spacing: -0.01em; }
+  h1 {
+    font: 800 clamp(34px, 6.4vw, 60px)/1.02 var(--display);
+    letter-spacing: -0.025em; margin: 44px 0 16px; max-width: 14em;
+  }
+  .lead { color: var(--muted); max-width: 54ch; margin: 0 0 34px; font-size: 17px; }
+
+  .tool {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 20px; padding: 26px;
+  }
+  .sec + .sec { margin-top: 26px; }
+  .sec > h2, .run h2, .result h2 {
+    font: 600 17px/1.3 var(--display); margin: 0 0 10px; letter-spacing: -0.005em;
+  }
+  .hint { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+
+  /* sumber */
+  .tabs { display: inline-flex; background: #E3E7ED; border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 14px; }
+  .tabs button {
+    font: 600 14px var(--body); border: 0; background: transparent; color: var(--muted);
+    padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(28,35,48,.14); }
+  .drop {
+    display: block; border: 2px dashed #AEB6C4; border-radius: 14px; padding: 34px 20px;
+    text-align: center; cursor: pointer; background: transparent; transition: background .15s, border-color .15s;
+  }
+  .drop:hover, .drop.over, .drop:focus-within { border-color: var(--accent); background: #fff; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop strong { display: block; font: 600 17px var(--display); }
+  .drop span { color: var(--muted); font-size: 14px; }
+  .picked { overflow-wrap: anywhere; }
+  input[type="url"] {
+    width: 100%; font: 400 16px var(--body); padding: 14px 14px; color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 10px; background: #fff;
+  }
+  input[type="url"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+
+  /* opsi */
+  .opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .opts.two { grid-template-columns: repeat(2, 1fr); }
+  .opt {
+    position: relative; display: block; border: 1.5px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; cursor: pointer;
+  }
+  .opt input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+  .opt b { display: block; font-weight: 600; }
+  .opt small { color: var(--muted); font-size: 13.5px; line-height: 1.4; display: block; margin-top: 2px; }
+  .opt:has(input:checked) { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(46,62,209,.14); }
+  .opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .btn {
+    display: inline-block; font: 600 16px var(--body); border: 0; border-radius: 12px;
+    padding: 14px 24px; cursor: pointer; background: var(--accent); color: #fff; text-decoration: none;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .btn:focus-visible, .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .err { color: var(--bad); font-weight: 500; margin: 12px 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  /* proses */
+  .steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+  .steps li { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+  .steps .mk {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid #AEB6C4; flex: none;
+    display: grid; place-items: center; font-size: 12px; color: #fff;
+  }
+  .steps li[data-state="active"] { color: var(--ink); font-weight: 600; }
+  .steps li[data-state="active"] .mk { border-color: var(--accent); animation: ring 1.4s ease-in-out infinite; }
+  .steps li[data-state="done"] { color: var(--ink); }
+  .steps li[data-state="done"] .mk { background: var(--good); border-color: var(--good); }
+  .steps li[data-state="done"] .mk::after { content: "\2713"; }
+  .steps .dt { margin-left: auto; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+  @keyframes ring { 0%,100% { box-shadow: 0 0 0 0 rgba(46,62,209,.35); } 50% { box-shadow: 0 0 0 6px rgba(46,62,209,0); } }
+  @media (prefers-reduced-motion: reduce) { .steps li .mk { animation: none !important; } }
+
+  .phase { margin: 24px 0 0; font-weight: 600; }
+  .strip { background: var(--film); border-radius: 6px; padding: 16px 0; position: relative; margin-top: 8px; }
+  .strip::before, .strip::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 6px;
+    background: radial-gradient(circle, #E7EAEF 0 1.6px, transparent 2.2px) 0 0 / 14px 6px repeat-x;
+  }
+  .strip::before { top: 4px; } .strip::after { bottom: 4px; }
+  .frames { display: flex; gap: 3px; padding: 0 12px; height: 40px; }
+  .f { flex: 1; background: var(--cell); border-radius: 2px; overflow: hidden; }
+  .f i { display: block; height: 100%; width: 0; background: var(--fill); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px 20px; margin: 22px 0 0; }
+  .stat dt { color: var(--muted); font-size: 13.5px; }
+  .stat dd { margin: 0; font: 600 22px/1.2 var(--display); font-variant-numeric: tabular-nums; }
+  .stat.big dd { font-size: 34px; }
+  .src { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .src h3 { font: 600 15px var(--display); margin: 0 0 8px; }
+  .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 20px; margin: 0; }
+  .kv dt { color: var(--muted); font-size: 13.5px; }
+  .kv dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  /* hasil */
+  video { width: 100%; max-height: 70vh; background: #000; border-radius: 12px; display: block; }
+  .save { margin: 22px 0 6px; font: 800 clamp(24px, 4.4vw, 34px)/1.15 var(--display); letter-spacing: -0.02em; }
+  .save.warn { color: var(--warn); }
+  .bars { display: grid; gap: 8px; margin: 14px 0 6px; }
+  .bar { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; font-size: 14px; }
+  .bar .tr { background: #E3E7ED; border-radius: 6px; height: 28px; overflow: hidden; }
+  .bar .fl { height: 100%; display: flex; align-items: center; padding: 0 10px; color: #fff; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .bar.a .fl { background: #6C7587; width: 100%; }
+  .bar.b .fl { background: var(--good); }
+  table { width: 100%; border-collapse: collapse; margin: 22px 0; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  thead th { font-weight: 600; color: var(--muted); font-size: 13.5px; }
+  tbody th { font-weight: 400; color: var(--muted); }
+  td.same { color: var(--good); font-weight: 600; }
+
+  @media (max-width: 640px) {
+    .tool { padding: 18px; border-radius: 16px; }
+    .opts, .opts.two { grid-template-columns: 1fr; }
+    .btn { width: 100%; text-align: center; }
+    th, td { font-size: 14px; padding-right: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Ciutkan</div>
+  <h1>Ukuran file mengecil, resolusi tetap utuh.</h1>
+  <p class="lead">Unggah video atau tempel tautannya. Ciutkan menurunkan bitrate, bukan jumlah piksel, jadi video tetap berukuran sama di layar.</p>
+
+  <main class="tool">
+    <!-- Form -->
+    <div id="setup">
+      <section class="sec">
+        <h2>Sumber video</h2>
+        <div class="tabs" role="tablist" aria-label="Sumber video">
+          <button role="tab" id="tab-file" aria-selected="true" aria-controls="pane-file">Unggah file</button>
+          <button role="tab" id="tab-url" aria-selected="false" aria-controls="pane-url">Dari URL</button>
+        </div>
+        <div id="pane-file" role="tabpanel" aria-labelledby="tab-file">
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept="video/*,.mkv,.mov,.avi,.flv,.wmv,.ts,.m4v,.3gp">
+            <strong id="dropTitle">Pilih file video atau seret ke sini</strong>
+            <span id="dropSub">MP4, MOV, MKV, WebM, AVI dan format lain</span>
+          </label>
+        </div>
+        <div id="pane-url" role="tabpanel" aria-labelledby="tab-url" hidden>
+          <label for="url" class="hint" style="margin:0 0 6px;display:block">Tautan langsung ke file video</label>
+          <input type="url" id="url" placeholder="https://contoh.com/video.mp4" autocomplete="off" inputmode="url">
+          <p class="hint">Harus tautan ke file video itu sendiri. Halaman seperti YouTube tidak didukung.</p>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2>Tingkat kompresi</h2>
+        <div class="opts" role="radiogroup" aria-label="Tingkat kompresi">
+          <label class="opt"><input type="radio" name="quality" value="ringan"><b>Ringan</b><small>Kualitas paling terjaga, penghematan paling kecil.</small></label>
+          <label class="opt"><input type="radio" name="quality" value="seimbang" checked><b>Seimbang</b><small>Pilihan umum. Selisih kualitas sulit terlihat.</small></label>
+          <label class="opt"><input type="radio" name="quality" value="maksimal"><b>Maksimal</b><small>File terkecil. Detail halus bisa sedikit berkurang.</small></label>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2>Codec hasil</h2>
+        <div class="opts two" role="radiogroup" aria-label="Codec hasil">
+          <label class="opt"><input type="radio" name="codec" value="h264" checked><b>H.264</b><small>Bisa diputar di hampir semua perangkat dan browser.</small></label>
+          <label class="opt"><input type="radio" name="codec" value="h265"><b>H.265</b><small>File lebih kecil lagi, tapi prosesnya lebih lama dan perangkat lama mungkin tidak bisa memutarnya.</small></label>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="actions"><button class="btn" id="go">Kompres video</button></div>
+        <p class="err" id="formErr" role="alert" hidden></p>
+        <p class="hint" id="limits">Resolusi dan frame rate tidak diubah.</p>
+      </section>
+    </div>
+
+    <!-- Proses -->
+    <div class="run" id="run" hidden>
+      <h2 id="status" aria-live="polite">Memulai…</h2>
+      <ol class="steps" id="steps">
+        <li data-k="transfer" data-state="wait"><span class="mk"></span><span class="lb">Mengunggah file</span><span class="dt"></span></li>
+        <li data-k="probe" data-state="wait"><span class="mk"></span><span class="lb">Membaca info video</span><span class="dt"></span></li>
+        <li data-k="encode" data-state="wait"><span class="mk"></span><span class="lb">Mengompres</span><span class="dt"></span></li>
+        <li data-k="done" data-state="wait"><span class="mk"></span><span class="lb">Selesai</span><span class="dt"></span></li>
+      </ol>
+
+      <p class="phase" id="phase">Menunggu</p>
+      <div class="strip" aria-hidden="true"><div class="frames" id="frames"></div></div>
+      <dl class="stats" id="stats"></dl>
+
+      <div class="src" id="src" hidden>
+        <h3 id="srcTitle">Video asli</h3>
+        <dl class="kv" id="srcKv"></dl>
+      </div>
+
+      <p class="err" id="runErr" role="alert" hidden></p>
+      <div class="actions" style="margin-top:24px">
+        <button class="btn ghost" id="cancel">Batalkan</button>
+        <button class="btn" id="retry" hidden>Kembali</button>
+      </div>
+    </div>
+
+    <!-- Hasil -->
+    <div class="result" id="result" hidden>
+      <video id="player" controls playsinline preload="metadata"></video>
+      <p class="save" id="saveLine"></p>
+      <div class="bars" id="bars"></div>
+      <p class="hint" id="note" hidden></p>
+      <table>
+        <thead><tr><th></th><th>Asli</th><th>Hasil</th></tr></thead>
+        <tbody id="cmp"></tbody>
+      </table>
+      <div class="actions">
+        <a class="btn" id="dl" href="#" download>Unduh video</a>
+        <button class="btn ghost" id="again">Kompres video lain</button>
+      </div>
+      <p class="hint" id="ttl"></p>
+    </div>
+  </main>
+</div>
+
+<script>
+(() => {
+  const $ = (s) => document.querySelector(s);
+  const N = 40; // jumlah frame pada strip progres
+
+  /* ───── format ───── */
+  const fmtBytes = (b) => {
+    if (!isFinite(b) || b <= 0) return '0 B';
+    const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.min(4, Math.floor(Math.log(b) / Math.log(1024)));
+    const v = b / Math.pow(1024, i);
+    return v.toLocaleString('id-ID', { maximumFractionDigits: i === 0 ? 0 : v < 10 ? 2 : 1 }) + ' ' + u[i];
+  };
+  const fmtTime = (s) => {
+    if (s == null || !isFinite(s)) return '–';
+    s = Math.round(s);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+    return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`;
+  };
+  const fmtBitrate = (b) => !b ? '–' : b >= 1e6 ? (b / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' Mbps' : Math.round(b / 1e3) + ' kbps';
+  const fmtPct = (p) => p == null ? '–' : p.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+  const CODECS = { h264: 'H.264', hevc: 'H.265 (HEVC)', vp9: 'VP9', vp8: 'VP8', av1: 'AV1', mpeg4: 'MPEG-4', aac: 'AAC', mp3: 'MP3', opus: 'Opus', ac3: 'AC-3', vorbis: 'Vorbis' };
+  const codecName = (c) => (c ? CODECS[c] || c.toUpperCase() : 'Tanpa audio');
+
+  /* ───── elemen ───── */
+  const setup = $('#setup'), run = $('#run'), result = $('#result');
+  const frames = $('#frames'), statsEl = $('#stats');
+  for (let i = 0; i < N; i++) { const f = document.createElement('div'); f.className = 'f'; f.append(document.createElement('i')); frames.append(f); }
+  const cells = [...frames.children];
+
+  let mode = 'file', file = null, maxMB = 2048, ttl = 60;
+  let jobId = null, es = null, xhr = null, finished = false, encStart = 0, xferStart = 0, inputInfo = null;
+
+  fetch('/api/config').then((r) => r.json()).then((c) => {
+    maxMB = c.maxMB; ttl = c.ttlMinutes;
+    $('#limits').textContent = `Resolusi dan frame rate tidak diubah. Ukuran maksimal ${maxMB.toLocaleString('id-ID')} MB. Hasil dihapus otomatis ${ttl} menit setelah selesai.`;
+  }).catch(() => {});
+
+  /* ───── tab sumber ───── */
+  function setMode(m) {
+    mode = m;
+    $('#tab-file').setAttribute('aria-selected', m === 'file');
+    $('#tab-url').setAttribute('aria-selected', m === 'url');
+    $('#pane-file').hidden = m !== 'file';
+    $('#pane-url').hidden = m !== 'url';
+    $('#formErr').hidden = true;
+  }
+  $('#tab-file').onclick = () => setMode('file');
+  $('#tab-url').onclick = () => setMode('url');
+
+  /* ───── pilih file ───── */
+  function pick(f) {
+    file = f || null;
+    $('#dropTitle').textContent = file ? file.name : 'Pilih file video atau seret ke sini';
+    $('#dropTitle').className = file ? 'picked' : '';
+    $('#dropSub').textContent = file ? `${fmtBytes(file.size)}. Klik untuk mengganti.` : 'MP4, MOV, MKV, WebM, AVI dan format lain';
+    $('#formErr').hidden = true;
+  }
+  $('#file').onchange = (e) => pick(e.target.files[0]);
+  const drop = $('#drop');
+  ['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) pick(e.dataTransfer.files[0]); });
+
+  /* ───── UI proses ───── */
+  function setStep(k, state, detail) {
+    const li = document.querySelector(`#steps li[data-k="${k}"]`);
+    li.dataset.state = state;
+    if (detail !== undefined) li.querySelector('.dt').textContent = detail;
+  }
+  function setStrip(pct) {
+    const p = pct == null ? 0 : pct;
+    cells.forEach((c, i) => { c.firstChild.style.width = Math.max(0, Math.min(1, (p / 100) * N - i)) * 100 + '%'; });
+  }
+  function setStats(list) {
+    statsEl.replaceChildren();
+    for (const [label, value, big] of list) {
+      const d = document.createElement('div'); d.className = 'stat' + (big ? ' big' : '');
+      const dt = document.createElement('dt'); dt.textContent = label;
+      const dd = document.createElement('dd'); dd.textContent = value;
+      d.append(dt, dd); statsEl.append(d);
+    }
+  }
+  function setKv(el, rows) {
+    el.replaceChildren();
+    for (const [k, v] of rows) {
+      const w = document.createElement('div');
+      const dt = document.createElement('dt'); dt.textContent = k;
+      const dd = document.createElement('dd'); dd.textContent = v;
+      w.append(dt, dd); el.append(w);
+    }
+  }
+  function resetRun() {
+    ['transfer', 'probe', 'encode', 'done'].forEach((k) => setStep(k, 'wait', ''));
+    document.querySelector('#steps li[data-k="transfer"] .lb').textContent = mode === 'file' ? 'Mengunggah file' : 'Mengunduh dari URL';
+    setStrip(0); setStats([]);
+    $('#status').textContent = 'Memulai…'; $('#phase').textContent = 'Menunggu';
+    $('#src').hidden = true; $('#runErr').hidden = true; $('#retry').hidden = true;
+    $('#cancel').hidden = false; $('#cancel').disabled = false;
+    finished = false; inputInfo = null;
+  }
+  function transferStats(loaded, total, label) {
+    const el = Math.max(0.001, (Date.now() - xferStart) / 1000);
+    const rate = loaded / el;
+    const pct = total ? (loaded / total) * 100 : null;
+    setStrip(pct);
+    setStats([
+      ['Progres', fmtPct(pct), true],
+      [label, total ? `${fmtBytes(loaded)} dari ${fmtBytes(total)}` : fmtBytes(loaded)],
+      ['Kecepatan', fmtBytes(rate) + '/detik'],
+      ['Sisa waktu', total ? fmtTime((total - loaded) / rate) : '–'],
+    ]);
+    setStep('transfer', 'active', pct == null ? fmtBytes(loaded) : fmtPct(pct));
+  }
+
+  /* ───── kirim ───── */
+  function showFormErr(msg) { const e = $('#formErr'); e.textContent = msg; e.hidden = false; }
+
+  $('#go').onclick = () => {
+    const url = $('#url').value.trim();
+    if (mode === 'file') {
+      if (!file) return showFormErr('Pilih file video dulu.');
+      if (file.size > maxMB * 1048576) return showFormErr(`Ukuran file melebihi batas ${maxMB.toLocaleString('id-ID')} MB.`);
+    } else {
+      if (!/^https?:\/\/\S+$/i.test(url)) return showFormErr('Isi URL yang valid, diawali http:// atau https://');
+    }
+    const fd = new FormData();
+    if (mode === 'file') fd.append('file', file); else fd.append('url', url);
+    fd.append('quality', document.querySelector('input[name="quality"]:checked').value);
+    fd.append('codec', document.querySelector('input[name="codec"]:checked').value);
+
+    setup.hidden = true; result.hidden = true; run.hidden = false;
+    resetRun();
+    xferStart = Date.now();
+    setStep('transfer', 'active', '0%');
+    $('#status').textContent = mode === 'file' ? 'Mengunggah file…' : 'Mengirim permintaan…';
+    $('#phase').textContent = mode === 'file' ? 'Mengunggah' : 'Menyiapkan';
+
+    xhr = new XMLHttpRequest();
+    xhr.open('POST', '/api/jobs');
+    if (mode === 'file') {
+      xhr.upload.onprogress = (e) => { if (e.lengthComputable) transferStats(e.loaded, e.total, 'Terunggah'); };
+    }
+    xhr.onload = () => {
+      let j = {}; try { j = JSON.parse(xhr.responseText); } catch {}
+      if (xhr.status !== 200) return fail(j.error || `Permintaan gagal (${xhr.status}).`);
+      jobId = j.id;
+      if (mode === 'file') { setStrip(100); setStep('transfer', 'done', fmtBytes(file.size)); }
+      listen(jobId);
+    };
+    xhr.onerror = () => fail('Koneksi terputus saat mengirim.');
+    xhr.send(fd);
+  };
+
+  /* ───── SSE ───── */
+  function listen(id) {
+    es = new EventSource(`/api/jobs/${id}/events`);
+    es.addEventListener('stage', (e) => onStage(JSON.parse(e.data)));
+    es.addEventListener('input', (e) => onInput(JSON.parse(e.data)));
+    es.addEventListener('progress', (e) => onProgress(JSON.parse(e.data)));
+    es.addEventListener('done', (e) => onDone(JSON.parse(e.data)));
+    es.addEventListener('error', (e) => { if (e.data) fail(JSON.parse(e.data).message); });
+    es.onerror = () => {
+      if (finished) return;
+      if (es.readyState === EventSource.CLOSED) fail('Koneksi ke server terputus. Proses mungkin sudah kedaluwarsa.');
+      else $('#status').textContent = 'Menyambung ulang…';
+    };
+  }
+
+  function onStage(s) {
+    if (s.name === 'queue') {
+      setStep('transfer', 'done');
+      $('#status').textContent = `Dalam antrean, urutan ke-${s.position}`;
+      $('#phase').textContent = 'Menunggu giliran';
+      setStats([['Posisi antrean', String(s.position), true]]);
+    } else if (s.name === 'download') {
+      xferStart = Date.now();
+      setStep('transfer', 'active', '');
+      $('#status').textContent = 'Mengunduh video dari URL…';
+      $('#phase').textContent = 'Mengunduh';
+    } else if (s.name === 'probe') {
+      setStep('transfer', 'done'); setStep('probe', 'active', '');
+      $('#status').textContent = 'Membaca info video…';
+      $('#phase').textContent = 'Menganalisis';
+      setStrip(0);
+    } else if (s.name === 'encode') {
+      setStep('probe', 'done'); setStep('encode', 'active', '0%');
+      encStart = Date.now();
+      $('#status').textContent = 'Mengompres video…';
+      $('#phase').textContent = 'Mengompres';
+      setStrip(0);
+    }
+  }
+
+  function onInput(i) {
+    inputInfo = i;
+    $('#src').hidden = false;
+    setKv($('#srcKv'), [
+      ['Resolusi', `${i.width} × ${i.height}`],
+      ['Frame rate', `${i.fps} fps`],
+      ['Codec video', codecName(i.videoCodec)],
+      ['Durasi', fmtTime(i.duration)],
+      ['Ukuran', fmtBytes(i.size)],
+    ]);
+    $('#srcTitle').textContent = `Video asli. Resolusi ${i.width} × ${i.height} akan dipertahankan.`;
+  }
+
+  function onProgress(p) {
+    if (p.phase === 'download') {
+      transferStats(p.loaded, p.total, 'Terunduh');
+      return;
+    }
+    setStrip(p.percent);
+    const elapsed = (Date.now() - encStart) / 1000;
+    const est = p.percent >= 5 && p.size ? p.size / (p.percent / 100) : null;
+    setStats([
+      ['Progres', fmtPct(p.percent), true],
+      ['Ukuran sementara', fmtBytes(p.size)],
+      ['Perkiraan ukuran akhir', est ? '± ' + fmtBytes(est) : 'menghitung…'],
+      ['Kecepatan', p.speed ? p.speed.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '×' : '–'],
+      ['Sisa waktu', fmtTime(p.eta)],
+      ['Sudah berjalan', fmtTime(elapsed)],
+    ]);
+    setStep('encode', 'active', fmtPct(p.percent));
+  }
+
+  function onDone(d) {
+    finished = true; es && es.close();
+    ['transfer', 'probe', 'encode', 'done'].forEach((k) => setStep(k, 'done'));
+    setStrip(100);
+    renderResult(d);
+    run.hidden = true; result.hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function renderResult(d) {
+    const a = d.input, b = d.output;
+    $('#player').src = d.url;
+    $('#dl').href = d.download; $('#dl').setAttribute('download', d.filename);
+
+    const smaller = d.savedBytes > 0;
+    const line = $('#saveLine');
+    line.classList.toggle('warn', !smaller);
+    line.textContent = smaller
+      ? `Ukuran turun ${d.savedPercent.toLocaleString('id-ID')}%, dari ${fmtBytes(a.size)} menjadi ${fmtBytes(b.size)}.`
+      : `Hasilnya tidak lebih kecil: ${fmtBytes(b.size)} dari ${fmtBytes(a.size)}.`;
+
+    const ratio = Math.min(100, Math.max(6, (b.size / a.size) * 100));
+    $('#bars').innerHTML = `
+      <div class="bar a"><span>Asli</span><div class="tr"><div class="fl">${fmtBytes(a.size)}</div></div></div>
+      <div class="bar b"><span>Hasil</span><div class="tr"><div class="fl" style="width:${ratio}%">${fmtBytes(b.size)}</div></div></div>`;
+
+    const note = $('#note');
+    if (!smaller) {
+      note.hidden = false;
+      note.textContent = 'Video ini sepertinya sudah terkompres dengan baik. Coba tingkat Maksimal atau codec H.265 untuk hasil lebih kecil.';
+    } else note.hidden = true;
+
+    const sameRes = a.width === b.width && a.height === b.height;
+    const rows = [
+      ['Format', (a.container || '').toUpperCase(), 'MP4'],
+      ['Ukuran', fmtBytes(a.size), fmtBytes(b.size)],
+      ['Resolusi', `${a.width} × ${a.height}`, `${b.width} × ${b.height}`, sameRes ? 'same' : ''],
+      ['Frame rate', `${a.fps} fps`, `${b.fps} fps`],
+      ['Codec video', codecName(a.videoCodec), codecName(b.videoCodec)],
+      ['Bitrate rata-rata', fmtBitrate(a.totalBitrate), fmtBitrate(b.totalBitrate)],
+      ['Codec audio', codecName(a.audioCodec), codecName(b.audioCodec)],
+      ['Durasi', fmtTime(a.duration), fmtTime(b.duration)],
+    ];
+    const tb = $('#cmp'); tb.replaceChildren();
+    for (const [k, x, y, cls] of rows) {
+      const tr = document.createElement('tr');
+      const th = document.createElement('th'); th.scope = 'row'; th.textContent = k;
+      const t1 = document.createElement('td'); t1.textContent = x;
+      const t2 = document.createElement('td'); t2.textContent = cls === 'same' ? `${y} (sama)` : y;
+      if (cls) t2.className = cls;
+      tr.append(th, t1, t2); tb.append(tr);
+    }
+    $('#ttl').textContent = `File ini tersedia ${ttl} menit lalu dihapus dari server.`;
+  }
+
+  /* ───── gagal, batal, ulang ───── */
+  function fail(msg) {
+    finished = true; es && es.close(); xhr && (xhr.onerror = null);
+    $('#status').textContent = 'Proses berhenti';
+    $('#runErr').textContent = msg; $('#runErr').hidden = false;
+    $('#cancel').hidden = true; $('#retry').hidden = false;
+    const active = document.querySelector('#steps li[data-state="active"]');
+    if (active) active.dataset.state = 'wait';
+  }
+  function backToForm() {
+    if (jobId) fetch(`/api/jobs/${jobId}`, { method: 'DELETE', keepalive: true }).catch(() => {});
+    es && es.close(); jobId = null;
+    run.hidden = true; result.hidden = true; setup.hidden = false;
+    $('#player').removeAttribute('src'); $('#player').load();
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+  $('#cancel').onclick = () => {
+    finished = true;
+    if (xhr && xhr.readyState !== 4) { xhr.onerror = null; xhr.abort(); }
+    backToForm();
+  };
+  $('#retry').onclick = backToForm;
+  $('#again').onclick = () => { pick(null); $('#file').value = ''; $('#url').value = ''; backToForm(); };
+})();
+</script>
+</body>
+</html>
