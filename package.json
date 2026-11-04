@@ -1,18 +1,13 @@
 {
-  "name": "ciutkan-kompres-video",
+  "name": "ciutkan-vercel",
   "version": "1.0.0",
-  "description": "Website tools kompres ukuran video tanpa menurunkan resolusi (upload atau URL, progres live).",
-  "main": "server.js",
+  "private": true,
+  "description": "Kompres ukuran video di browser (ffmpeg.wasm), resolusi tetap. Situs static untuk Vercel.",
   "scripts": {
-    "start": "node server.js"
-  },
-  "engines": {
-    "node": ">=18"
+    "build": "node scripts/copy-vendor.js"
   },
   "dependencies": {
-    "express": "^4.19.2",
-    "ffmpeg-static": "^5.2.0",
-    "ffprobe-static": "^3.1.0",
-    "multer": "^1.4.5-lts.1"
+    "@ffmpeg/core": "0.12.6",
+    "@ffmpeg/ffmpeg": "0.12.10"
   }
 }
