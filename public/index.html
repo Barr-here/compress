@@ -1,1 +1,663 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Ciutkan: kompres ukuran video, resolusi tetap</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    color-scheme: light;
+    --bg: #E7EAEF;
+    --panel: #F8F9FB;
+    --ink: #1C2330;
+    --muted: #586174;
+    --line: #C9CFD9;
+    --accent: #2E3ED1;
+    --good: #0B7A57;
+    --warn: #8F5400;
+    --bad: #B3261E;
+    --film: #222A38;
+    --cell: #3C4659;
+    --fill: #8B98FF;
+    --display: 'Bricolage Grotesque', system-ui, sans-serif;
+    --body: 'Figtree', system-ui, sans-serif;
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 400 16px/1.55 var(--body);
+  }
+  .wrap { max-width: 880px; margin: 0 auto; padding: 26px 20px 90px; }
+  .brand { font: 800 21px/1 var(--display); letter-spacing: -0.01em; }
+  h1 {
+    font: 800 clamp(34px, 6.4vw, 60px)/1.02 var(--display);
+    letter-spacing: -0.025em; margin: 44px 0 16px; max-width: 14em;
+  }
+  .lead { color: var(--muted); max-width: 54ch; margin: 0 0 34px; font-size: 17px; }
 
+  .tool {
+    background: var(--panel); border: 1px solid var(--line);
+    border-radius: 20px; padding: 26px;
+  }
+  .sec + .sec { margin-top: 26px; }
+  .sec > h2, .run h2, .result h2 {
+    font: 600 17px/1.3 var(--display); margin: 0 0 10px; letter-spacing: -0.005em;
+  }
+  .hint { color: var(--muted); font-size: 14px; margin: 8px 0 0; }
+
+  /* sumber */
+  .tabs { display: inline-flex; background: #E3E7ED; border-radius: 10px; padding: 3px; gap: 2px; margin-bottom: 14px; }
+  .tabs button {
+    font: 600 14px var(--body); border: 0; background: transparent; color: var(--muted);
+    padding: 8px 16px; border-radius: 8px; cursor: pointer;
+  }
+  .tabs button[aria-selected="true"] { background: #fff; color: var(--ink); box-shadow: 0 1px 2px rgba(28,35,48,.14); }
+  .drop {
+    display: block; border: 2px dashed #AEB6C4; border-radius: 14px; padding: 34px 20px;
+    text-align: center; cursor: pointer; background: transparent; transition: background .15s, border-color .15s;
+  }
+  .drop:hover, .drop.over, .drop:focus-within { border-color: var(--accent); background: #fff; }
+  .drop input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+  .drop strong { display: block; font: 600 17px var(--display); }
+  .drop span { color: var(--muted); font-size: 14px; }
+  .picked { overflow-wrap: anywhere; }
+  input[type="url"] {
+    width: 100%; font: 400 16px var(--body); padding: 14px 14px; color: var(--ink);
+    border: 1.5px solid var(--line); border-radius: 10px; background: #fff;
+  }
+  input[type="url"]:focus { outline: 2px solid var(--accent); outline-offset: 1px; border-color: var(--accent); }
+
+  /* opsi */
+  .opts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+  .opts.two { grid-template-columns: repeat(2, 1fr); }
+  .opt {
+    position: relative; display: block; border: 1.5px solid var(--line); border-radius: 10px;
+    padding: 12px 14px; cursor: pointer;
+  }
+  .opt input { position: absolute; inset: 0; opacity: 0; cursor: pointer; margin: 0; }
+  .opt b { display: block; font-weight: 600; }
+  .opt small { color: var(--muted); font-size: 13.5px; line-height: 1.4; display: block; margin-top: 2px; }
+  .opt:has(input:checked) { border-color: var(--accent); background: #fff; box-shadow: 0 0 0 3px rgba(46,62,209,.14); }
+  .opt:has(input:focus-visible) { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  .btn {
+    display: inline-block; font: 600 16px var(--body); border: 0; border-radius: 12px;
+    padding: 14px 24px; cursor: pointer; background: var(--accent); color: #fff; text-decoration: none;
+  }
+  .btn:hover { filter: brightness(1.08); }
+  .btn.ghost { background: transparent; color: var(--ink); border: 1.5px solid var(--line); }
+  .btn:focus-visible, .tabs button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .err { color: var(--bad); font-weight: 500; margin: 12px 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+  /* proses */
+  .steps { list-style: none; margin: 14px 0 0; padding: 0; display: grid; gap: 8px; }
+  .steps li { display: flex; align-items: center; gap: 10px; color: var(--muted); }
+  .steps .mk {
+    width: 20px; height: 20px; border-radius: 50%; border: 2px solid #AEB6C4; flex: none;
+    display: grid; place-items: center; font-size: 12px; color: #fff;
+  }
+  .steps li[data-state="active"] { color: var(--ink); font-weight: 600; }
+  .steps li[data-state="active"] .mk { border-color: var(--accent); animation: ring 1.4s ease-in-out infinite; }
+  .steps li[data-state="done"] { color: var(--ink); }
+  .steps li[data-state="done"] .mk { background: var(--good); border-color: var(--good); }
+  .steps li[data-state="done"] .mk::after { content: "\2713"; }
+  .steps .dt { margin-left: auto; font-weight: 400; color: var(--muted); font-variant-numeric: tabular-nums; }
+  @keyframes ring { 0%,100% { box-shadow: 0 0 0 0 rgba(46,62,209,.35); } 50% { box-shadow: 0 0 0 6px rgba(46,62,209,0); } }
+  @media (prefers-reduced-motion: reduce) { .steps li .mk { animation: none !important; } }
+
+  .phase { margin: 24px 0 0; font-weight: 600; }
+  .strip { background: var(--film); border-radius: 6px; padding: 16px 0; position: relative; margin-top: 8px; }
+  .strip::before, .strip::after {
+    content: ""; position: absolute; left: 0; right: 0; height: 6px;
+    background: radial-gradient(circle, #E7EAEF 0 1.6px, transparent 2.2px) 0 0 / 14px 6px repeat-x;
+  }
+  .strip::before { top: 4px; } .strip::after { bottom: 4px; }
+  .frames { display: flex; gap: 3px; padding: 0 12px; height: 40px; }
+  .f { flex: 1; background: var(--cell); border-radius: 2px; overflow: hidden; }
+  .f i { display: block; height: 100%; width: 0; background: var(--fill); }
+
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px 20px; margin: 22px 0 0; }
+  .stat dt { color: var(--muted); font-size: 13.5px; }
+  .stat dd { margin: 0; font: 600 22px/1.2 var(--display); font-variant-numeric: tabular-nums; }
+  .stat.big dd { font-size: 34px; }
+  .src { margin-top: 24px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .src h3 { font: 600 15px var(--display); margin: 0 0 8px; }
+  .kv { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px 20px; margin: 0; }
+  .kv dt { color: var(--muted); font-size: 13.5px; }
+  .kv dd { margin: 0; font-weight: 500; font-variant-numeric: tabular-nums; }
+
+  /* hasil */
+  video { width: 100%; max-height: 70vh; background: #000; border-radius: 12px; display: block; }
+  .save { margin: 22px 0 6px; font: 800 clamp(24px, 4.4vw, 34px)/1.15 var(--display); letter-spacing: -0.02em; }
+  .save.warn { color: var(--warn); }
+  .bars { display: grid; gap: 8px; margin: 14px 0 6px; }
+  .bar { display: grid; grid-template-columns: 56px 1fr; gap: 12px; align-items: center; font-size: 14px; }
+  .bar .tr { background: #E3E7ED; border-radius: 6px; height: 28px; overflow: hidden; }
+  .bar .fl { height: 100%; display: flex; align-items: center; padding: 0 10px; color: #fff; font-weight: 600; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .bar.a .fl { background: #6C7587; width: 100%; }
+  .bar.b .fl { background: var(--good); }
+  table { width: 100%; border-collapse: collapse; margin: 22px 0; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 10px 12px 10px 0; border-bottom: 1px solid var(--line); font-size: 15px; }
+  thead th { font-weight: 600; color: var(--muted); font-size: 13.5px; }
+  tbody th { font-weight: 400; color: var(--muted); }
+  td.same { color: var(--good); font-weight: 600; }
+
+  @media (max-width: 640px) {
+    .tool { padding: 18px; border-radius: 16px; }
+    .opts, .opts.two { grid-template-columns: 1fr; }
+    .btn { width: 100%; text-align: center; }
+    th, td { font-size: 14px; padding-right: 8px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="brand">Ciutkan</div>
+  <h1>Ukuran file mengecil, resolusi tetap utuh.</h1>
+  <p class="lead">Unggah video atau tempel tautannya. Ciutkan menurunkan bitrate, bukan jumlah piksel, jadi gambar tetap berukuran sama. Semua diproses di browser Anda, video tidak dikirim ke server.</p>
+
+  <main class="tool">
+    <!-- Form -->
+    <div id="setup">
+      <section class="sec">
+        <h2>Sumber video</h2>
+        <div class="tabs" role="tablist" aria-label="Sumber video">
+          <button role="tab" id="tab-file" aria-selected="true" aria-controls="pane-file">Unggah file</button>
+          <button role="tab" id="tab-url" aria-selected="false" aria-controls="pane-url">Dari URL</button>
+        </div>
+        <div id="pane-file" role="tabpanel" aria-labelledby="tab-file">
+          <label class="drop" id="drop">
+            <input type="file" id="file" accept="video/*,.mkv,.mov,.avi,.flv,.wmv,.ts,.m4v,.3gp">
+            <strong id="dropTitle">Pilih file video atau seret ke sini</strong>
+            <span id="dropSub">MP4, MOV, MKV, WebM, AVI dan format lain</span>
+          </label>
+        </div>
+        <div id="pane-url" role="tabpanel" aria-labelledby="tab-url" hidden>
+          <label for="url" class="hint" style="margin:0 0 6px;display:block">Tautan langsung ke file video</label>
+          <input type="url" id="url" placeholder="https://contoh.com/video.mp4" autocomplete="off" inputmode="url">
+          <p class="hint">Harus tautan langsung ke file video, dan server sumbernya harus mengizinkan akses dari browser (CORS). Jika gagal, unduh dulu lalu unggah manual.</p>
+        </div>
+      </section>
+
+      <section class="sec">
+        <h2>Tingkat kompresi</h2>
+        <div class="opts" role="radiogroup" aria-label="Tingkat kompresi">
+          <label class="opt"><input type="radio" name="quality" value="ringan"><b>Ringan</b><small>Kualitas paling terjaga, penghematan paling kecil.</small></label>
+          <label class="opt"><input type="radio" name="quality" value="seimbang" checked><b>Seimbang</b><small>Pilihan umum. Selisih kualitas sulit terlihat.</small></label>
+          <label class="opt"><input type="radio" name="quality" value="maksimal"><b>Maksimal</b><small>File terkecil. Detail halus bisa sedikit berkurang.</small></label>
+        </div>
+      </section>
+
+      <section class="sec">
+        <div class="actions"><button class="btn" id="go">Kompres video</button></div>
+        <p class="err" id="formErr" role="alert" hidden></p>
+        <p class="hint" id="limits">Resolusi dan frame rate tidak diubah. Proses berjalan di perangkat Anda, jadi video besar bisa lama dan memakan memori. Biarkan tab tetap terbuka sampai selesai.</p>
+      </section>
+    </div>
+
+    <!-- Proses -->
+    <div class="run" id="run" hidden>
+      <h2 id="status" aria-live="polite">Memulai…</h2>
+      <ol class="steps" id="steps">
+        <li data-k="transfer" data-state="wait"><span class="mk"></span><span class="lb">Membaca file</span><span class="dt"></span></li>
+        <li data-k="engine" data-state="wait"><span class="mk"></span><span class="lb">Menyiapkan mesin kompres</span><span class="dt"></span></li>
+        <li data-k="probe" data-state="wait"><span class="mk"></span><span class="lb">Membaca info video</span><span class="dt"></span></li>
+        <li data-k="encode" data-state="wait"><span class="mk"></span><span class="lb">Mengompres</span><span class="dt"></span></li>
+        <li data-k="done" data-state="wait"><span class="mk"></span><span class="lb">Selesai</span><span class="dt"></span></li>
+      </ol>
+
+      <p class="phase" id="phase">Menunggu</p>
+      <div class="strip" aria-hidden="true"><div class="frames" id="frames"></div></div>
+      <dl class="stats" id="stats"></dl>
+
+      <div class="src" id="src" hidden>
+        <h3 id="srcTitle">Video asli</h3>
+        <dl class="kv" id="srcKv"></dl>
+      </div>
+
+      <p class="err" id="runErr" role="alert" hidden></p>
+      <div class="actions" style="margin-top:24px">
+        <button class="btn ghost" id="cancel">Batalkan</button>
+        <button class="btn" id="retry" hidden>Kembali</button>
+      </div>
+    </div>
+
+    <!-- Hasil -->
+    <div class="result" id="result" hidden>
+      <video id="player" controls playsinline preload="metadata"></video>
+      <p class="save" id="saveLine"></p>
+      <div class="bars" id="bars"></div>
+      <p class="hint" id="note" hidden></p>
+      <table>
+        <thead><tr><th></th><th>Asli</th><th>Hasil</th></tr></thead>
+        <tbody id="cmp"></tbody>
+      </table>
+      <div class="actions">
+        <a class="btn" id="dl" href="#" download>Unduh video</a>
+        <button class="btn ghost" id="again">Kompres video lain</button>
+      </div>
+      <p class="hint" id="ttl">Hasil hanya ada di tab ini. Unduh sebelum menutup atau memuat ulang halaman.</p>
+    </div>
+  </main>
+</div>
+
+<script type="module">
+import { FFmpeg } from '/vendor/ffmpeg/index.js';
+
+const $ = (s) => document.querySelector(s);
+const N = 40; // jumlah frame pada strip progres
+const CRF = { ringan: 24, seimbang: 28, maksimal: 32 }; // resolusi tidak diubah, hanya bitrate
+
+/* ───── format ───── */
+const fmtBytes = (b) => {
+  if (!isFinite(b) || b <= 0) return '0 B';
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  const i = Math.min(4, Math.floor(Math.log(b) / Math.log(1024)));
+  const v = b / Math.pow(1024, i);
+  return v.toLocaleString('id-ID', { maximumFractionDigits: i === 0 ? 0 : v < 10 ? 2 : 1 }) + ' ' + u[i];
+};
+const fmtTime = (s) => {
+  if (s == null || !isFinite(s)) return '–';
+  s = Math.round(s);
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), x = s % 60;
+  return h ? `${h}:${String(m).padStart(2, '0')}:${String(x).padStart(2, '0')}` : `${m}:${String(x).padStart(2, '0')}`;
+};
+const fmtBitrate = (b) => !b ? '–' : b >= 1e6 ? (b / 1e6).toLocaleString('id-ID', { maximumFractionDigits: 2 }) + ' Mbps' : Math.round(b / 1e3) + ' kbps';
+const fmtPct = (p) => p == null ? '–' : p.toLocaleString('id-ID', { minimumFractionDigits: 1, maximumFractionDigits: 1 }) + '%';
+const CODECS = { h264: 'H.264', hevc: 'H.265 (HEVC)', vp9: 'VP9', vp8: 'VP8', av1: 'AV1', mpeg4: 'MPEG-4', aac: 'AAC', mp3: 'MP3', opus: 'Opus', ac3: 'AC-3', vorbis: 'Vorbis' };
+const codecName = (c) => (c ? CODECS[c] || c.toUpperCase() : 'Tanpa audio');
+
+/* ───── elemen ───── */
+const setup = $('#setup'), run = $('#run'), result = $('#result');
+const frames = $('#frames'), statsEl = $('#stats');
+for (let i = 0; i < N; i++) { const f = document.createElement('div'); f.className = 'f'; f.append(document.createElement('i')); frames.append(f); }
+const cells = [...frames.children];
+
+let mode = 'file', file = null;
+let ffmpeg = null, engineReady = false, cancelled = false, abortCtl = null, outUrl = null;
+let logSink = null, progressSink = null, xferStart = 0, encStart = 0;
+
+/* ───── tab sumber ───── */
+function setMode(m) {
+  mode = m;
+  $('#tab-file').setAttribute('aria-selected', m === 'file');
+  $('#tab-url').setAttribute('aria-selected', m === 'url');
+  $('#pane-file').hidden = m !== 'file';
+  $('#pane-url').hidden = m !== 'url';
+  $('#formErr').hidden = true;
+}
+$('#tab-file').onclick = () => setMode('file');
+$('#tab-url').onclick = () => setMode('url');
+
+/* ───── pilih file ───── */
+function pick(f) {
+  file = f || null;
+  $('#dropTitle').textContent = file ? file.name : 'Pilih file video atau seret ke sini';
+  $('#dropTitle').className = file ? 'picked' : '';
+  $('#dropSub').textContent = file ? `${fmtBytes(file.size)}. Klik untuk mengganti.` : 'MP4, MOV, MKV, WebM, AVI dan format lain';
+  $('#formErr').hidden = true;
+}
+$('#file').onchange = (e) => pick(e.target.files[0]);
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach((t) => drop.addEventListener(t, (e) => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', (e) => { if (e.dataTransfer.files[0]) pick(e.dataTransfer.files[0]); });
+
+/* ───── UI proses ───── */
+function setStep(k, state, detail) {
+  const li = document.querySelector(`#steps li[data-k="${k}"]`);
+  li.dataset.state = state;
+  if (detail !== undefined) li.querySelector('.dt').textContent = detail;
+}
+function setStrip(pct) {
+  const p = pct == null ? 0 : pct;
+  cells.forEach((c, i) => { c.firstChild.style.width = Math.max(0, Math.min(1, (p / 100) * N - i)) * 100 + '%'; });
+}
+function setStats(list) {
+  statsEl.replaceChildren();
+  for (const [label, value, big] of list) {
+    const d = document.createElement('div'); d.className = 'stat' + (big ? ' big' : '');
+    const dt = document.createElement('dt'); dt.textContent = label;
+    const dd = document.createElement('dd'); dd.textContent = value;
+    d.append(dt, dd); statsEl.append(d);
+  }
+}
+function setKv(el, rows) {
+  el.replaceChildren();
+  for (const [k, v] of rows) {
+    const w = document.createElement('div');
+    const dt = document.createElement('dt'); dt.textContent = k;
+    const dd = document.createElement('dd'); dd.textContent = v;
+    w.append(dt, dd); el.append(w);
+  }
+}
+function resetRun() {
+  ['transfer', 'engine', 'probe', 'encode', 'done'].forEach((k) => setStep(k, 'wait', ''));
+  document.querySelector('#steps li[data-k="transfer"] .lb').textContent = mode === 'file' ? 'Membaca file' : 'Mengunduh dari URL';
+  setStrip(0); setStats([]);
+  $('#status').textContent = 'Memulai…'; $('#phase').textContent = 'Menunggu';
+  $('#src').hidden = true; $('#runErr').hidden = true; $('#retry').hidden = true;
+  $('#cancel').hidden = false;
+}
+function transferStats(loaded, total, label) {
+  const el = Math.max(0.001, (Date.now() - xferStart) / 1000);
+  const rate = loaded / el;
+  const pct = total ? Math.min(100, (loaded / total) * 100) : null;
+  setStrip(pct);
+  setStats([
+    ['Progres', fmtPct(pct), true],
+    [label, total ? `${fmtBytes(loaded)} dari ${fmtBytes(total)}` : fmtBytes(loaded)],
+    ['Kecepatan', fmtBytes(rate) + '/detik'],
+    ['Sisa waktu', total ? fmtTime((total - loaded) / rate) : '–'],
+  ]);
+  setStep('transfer', 'active', pct == null ? fmtBytes(loaded) : fmtPct(pct));
+}
+
+/* ───── helper jaringan ───── */
+async function readStream(res, onProg) {
+  const total = Number(res.headers.get('content-length')) || 0;
+  const reader = res.body.getReader();
+  const chunks = []; let got = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    chunks.push(value); got += value.length;
+    onProg(got, total);
+  }
+  return chunks;
+}
+async function toBlobURL(url, type, onProg) {
+  const res = await fetch(url);
+  if (!res.ok) throw new Error(`Gagal memuat mesin kompres (${res.status}). Pastikan folder /vendor ikut ter-deploy.`);
+  const chunks = await readStream(res, onProg);
+  return URL.createObjectURL(new Blob(chunks, { type }));
+}
+async function downloadUrl(url, signal) {
+  let res;
+  try { res = await fetch(url, { signal }); }
+  catch (e) {
+    if (e.name === 'AbortError') throw e;
+    throw new Error('Browser tidak bisa mengambil video dari URL ini. Biasanya karena server sumber memblokir akses dari situs lain (CORS). Unduh videonya dulu, lalu unggah manual.');
+  }
+  if (!res.ok) throw new Error(`Server sumber menjawab dengan kode ${res.status}.`);
+  if ((res.headers.get('content-type') || '').includes('text/html')) {
+    throw new Error('URL ini halaman web, bukan file video. Gunakan tautan langsung ke file video, misalnya yang berakhiran .mp4.');
+  }
+  const chunks = await readStream(res, (g, t) => transferStats(g, t, 'Terunduh'));
+  return new Blob(chunks);
+}
+
+/* ───── mesin ffmpeg.wasm ───── */
+async function getEngine() {
+  if (ffmpeg && engineReady) return ffmpeg;
+  ffmpeg = new FFmpeg();
+  ffmpeg.on('log', ({ message }) => { if (logSink) logSink(message); });
+  ffmpeg.on('progress', (p) => { if (progressSink) progressSink(p); });
+  const prog = (got, total) => {
+    const pct = total ? Math.min(100, (got / total) * 100) : null;
+    setStrip(pct);
+    setStats([['Progres', fmtPct(pct), true], ['Terunduh', fmtBytes(got)]]);
+    setStep('engine', 'active', pct == null ? fmtBytes(got) : fmtPct(pct));
+  };
+  const coreURL = await toBlobURL('/vendor/core/ffmpeg-core.js', 'text/javascript', () => {});
+  const wasmURL = await toBlobURL('/vendor/core/ffmpeg-core.wasm', 'application/wasm', prog);
+  await ffmpeg.load({ coreURL, wasmURL });
+  engineReady = true;
+  return ffmpeg;
+}
+function resetEngine() {
+  try { ffmpeg && ffmpeg.terminate(); } catch {}
+  ffmpeg = null; engineReady = false;
+}
+
+async function probe(path, ext, size) {
+  const lines = [];
+  logSink = (m) => lines.push(m);
+  try { await ffmpeg.exec(['-hide_banner', '-i', path]); } // keluar dengan kode error, itu normal
+  finally { logSink = null; }
+  return parseInfo(lines.join('\n'), ext, size);
+}
+
+function parseInfo(text, ext, size) {
+  const rows = text.split('\n');
+  const vline = rows.find((l) => /Stream #.*Video:/.test(l) && !/attached pic/.test(l));
+  const aline = rows.find((l) => /Stream #.*Audio:/.test(l));
+  if (!vline) return null;
+  const dur = text.match(/Duration:\s*(\d+):(\d+):(\d+(?:\.\d+)?)/);
+  const duration = dur ? Number(dur[1]) * 3600 + Number(dur[2]) * 60 + Number(dur[3]) : 0;
+  const res = vline.match(/,\s*(\d{2,5})x(\d{2,5})/);
+  if (!res) return null;
+  let width = Number(res[1]), height = Number(res[2]);
+  const rawWidth = width, rawHeight = height;
+  const rot = text.match(/rotation of (-?[\d.]+) degrees/);
+  if (rot && Math.abs(Math.round(Number(rot[1]))) % 180 === 90) [width, height] = [height, width];
+  const fps = vline.match(/([\d.]+)\s*fps/);
+  return {
+    container: ext,
+    videoCodec: (vline.match(/Video:\s*([\w]+)/) || [])[1] || null,
+    width, height, rawWidth, rawHeight,
+    fps: fps ? Math.round(Number(fps[1]) * 100) / 100 : 0,
+    duration, size,
+    totalBitrate: duration ? Math.round((size * 8) / duration) : 0,
+    audioCodec: aline ? (aline.match(/Audio:\s*([\w]+)/) || [])[1] || null : null,
+  };
+}
+
+/* ───── alur utama ───── */
+function showFormErr(msg) { const e = $('#formErr'); e.textContent = msg; e.hidden = false; }
+
+$('#go').onclick = async () => {
+  const url = $('#url').value.trim();
+  if (mode === 'file') {
+    if (!file) return showFormErr('Pilih file video dulu.');
+  } else if (!/^https?:\/\/\S+$/i.test(url)) {
+    return showFormErr('Isi URL yang valid, diawali http:// atau https://');
+  }
+  const quality = document.querySelector('input[name="quality"]:checked').value;
+
+  setup.hidden = true; result.hidden = true; run.hidden = false;
+  cancelled = false; resetRun();
+  abortCtl = new AbortController();
+
+  try {
+    /* 1. ambil video */
+    let blob, name;
+    if (mode === 'file') {
+      blob = file; name = file.name;
+      setStep('transfer', 'done', fmtBytes(blob.size));
+    } else {
+      xferStart = Date.now();
+      setStep('transfer', 'active', '0%');
+      $('#status').textContent = 'Mengunduh video dari URL…';
+      $('#phase').textContent = 'Mengunduh';
+      blob = await downloadUrl(url, abortCtl.signal);
+      try { name = decodeURIComponent(new URL(url).pathname.split('/').pop() || ''); } catch { name = ''; }
+      name = name || 'video';
+      setStep('transfer', 'done', fmtBytes(blob.size));
+    }
+    const ext = ((name.match(/\.([a-z0-9]{1,5})$/i) || [])[1] || 'video').toLowerCase();
+    const base = name.replace(/\.[^.]+$/, '').replace(/[^\w\-. ]+/g, '_').slice(0, 80) || 'video';
+
+    /* 2. muat mesin */
+    setStep('engine', 'active', '');
+    $('#status').textContent = 'Menyiapkan mesin kompres…';
+    $('#phase').textContent = 'Memuat mesin (sekali saja, sekitar 30 MB)';
+    setStrip(0);
+    await getEngine();
+    if (cancelled) return;
+    setStep('engine', 'done', '');
+
+    /* 3. pasang input tanpa menyalin ke memori */
+    try { await ffmpeg.createDir('/in'); } catch {}
+    const mounted = await ffmpeg.mount('WORKERFS', { blobs: [{ name: 'input', data: blob }] }, '/in');
+    if (!mounted) await ffmpeg.writeFile('/in/input', new Uint8Array(await blob.arrayBuffer()));
+
+    /* 4. baca info */
+    setStep('probe', 'active', '');
+    $('#status').textContent = 'Membaca info video…';
+    $('#phase').textContent = 'Menganalisis';
+    const info = await probe('/in/input', ext, blob.size);
+    if (cancelled) return;
+    if (!info) throw new Error('File ini tidak bisa dibaca sebagai video, atau formatnya belum didukung.');
+    setStep('probe', 'done', '');
+    $('#src').hidden = false;
+    setKv($('#srcKv'), [
+      ['Resolusi', `${info.width} × ${info.height}`],
+      ['Frame rate', `${info.fps} fps`],
+      ['Codec video', codecName(info.videoCodec)],
+      ['Durasi', fmtTime(info.duration)],
+      ['Ukuran', fmtBytes(info.size)],
+    ]);
+    $('#srcTitle').textContent = `Video asli. Resolusi ${info.width} × ${info.height} akan dipertahankan.`;
+
+    /* 5. kompres */
+    setStep('encode', 'active', '0%');
+    $('#status').textContent = 'Mengompres video…';
+    $('#phase').textContent = 'Mengompres';
+    setStrip(0);
+    encStart = Date.now();
+    let curSize = 0, lastLine = '';
+    logSink = (m) => {
+      lastLine = m;
+      const s = m.match(/size=\s*(\d+)\s*([kKmM]i?B)/);
+      if (s) curSize = Number(s[1]) * (/m/i.test(s[2]) ? 1048576 : 1024);
+    };
+    progressSink = ({ progress, time }) => {
+      const t = time > 0 ? time / 1e6 : 0;
+      const pct = info.duration > 0 ? Math.min(99.9, Math.max(0, (t / info.duration) * 100))
+        : Math.min(99.9, Math.max(0, progress * 100));
+      const elapsed = (Date.now() - encStart) / 1000;
+      const speed = t > 0 && elapsed > 0 ? t / elapsed : null;
+      const eta = speed && info.duration > 0 ? Math.max(0, (info.duration - t) / speed) : null;
+      const est = pct >= 5 && curSize ? curSize / (pct / 100) : null;
+      setStrip(pct);
+      setStats([
+        ['Progres', fmtPct(pct), true],
+        ['Ukuran sementara', fmtBytes(curSize)],
+        ['Perkiraan ukuran akhir', est ? '± ' + fmtBytes(est) : 'menghitung…'],
+        ['Kecepatan', speed ? speed.toLocaleString('id-ID', { maximumFractionDigits: 2 }) + '×' : '–'],
+        ['Sisa waktu', fmtTime(eta)],
+        ['Sudah berjalan', fmtTime(elapsed)],
+      ]);
+      setStep('encode', 'active', fmtPct(pct));
+    };
+
+    const args = ['-hide_banner', '-y', '-i', '/in/input', '-map', '0:v:0', '-map', '0:a?',
+      '-c:v', 'libx264', '-preset', 'fast', '-crf', String(CRF[quality]), '-pix_fmt', 'yuv420p'];
+    if (info.rawWidth % 2 || info.rawHeight % 2) args.push('-vf', 'pad=ceil(iw/2)*2:ceil(ih/2)*2'); // tanpa scale
+    args.push('-c:a', 'aac', '-b:a', quality === 'maksimal' ? '96k' : '128k', '-movflags', '+faststart', '/out.mp4');
+
+    const code = await ffmpeg.exec(args);
+    logSink = null; progressSink = null;
+    if (cancelled) return;
+    if (code !== 0) throw new Error(`Proses kompres gagal. ${lastLine}`.trim());
+    setStep('encode', 'done', '');
+
+    /* 6. hasil */
+    const data = await ffmpeg.readFile('/out.mp4');
+    const out = new Blob([data], { type: 'video/mp4' });
+    const oinfo = await probe('/out.mp4', 'mp4', out.size);
+    try { await ffmpeg.deleteFile('/out.mp4'); await ffmpeg.unmount('/in'); await ffmpeg.deleteDir('/in'); } catch {}
+
+    if (outUrl) URL.revokeObjectURL(outUrl);
+    outUrl = URL.createObjectURL(out);
+    ['done'].forEach((k) => setStep(k, 'done', ''));
+    setStrip(100);
+    const savedBytes = info.size - out.size;
+    renderResult({
+      input: info, output: oinfo || { ...info, size: out.size, container: 'mp4' },
+      savedBytes, savedPercent: Math.round((savedBytes / info.size) * 1000) / 10,
+      url: outUrl, filename: `${base}-ciutkan.mp4`,
+    });
+    run.hidden = true; result.hidden = false;
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  } catch (e) {
+    if (cancelled || (e && e.name === 'AbortError')) return;
+    const msg = String((e && e.message) || e);
+    fail(/memory|abort|out of bounds|unreachable/i.test(msg)
+      ? 'Memori browser tidak cukup untuk video ini. Coba video yang lebih kecil atau tutup tab lain.'
+      : msg);
+  } finally {
+    logSink = null; progressSink = null;
+  }
+};
+
+function renderResult(d) {
+  const a = d.input, b = d.output;
+  $('#player').src = d.url;
+  $('#dl').href = d.url; $('#dl').setAttribute('download', d.filename);
+
+  const smaller = d.savedBytes > 0;
+  const line = $('#saveLine');
+  line.classList.toggle('warn', !smaller);
+  line.textContent = smaller
+    ? `Ukuran turun ${d.savedPercent.toLocaleString('id-ID')}%, dari ${fmtBytes(a.size)} menjadi ${fmtBytes(b.size)}.`
+    : `Hasilnya tidak lebih kecil: ${fmtBytes(b.size)} dari ${fmtBytes(a.size)}.`;
+
+  const ratio = Math.min(100, Math.max(6, (b.size / a.size) * 100));
+  $('#bars').innerHTML = `
+    <div class="bar a"><span>Asli</span><div class="tr"><div class="fl">${fmtBytes(a.size)}</div></div></div>
+    <div class="bar b"><span>Hasil</span><div class="tr"><div class="fl" style="width:${ratio}%">${fmtBytes(b.size)}</div></div></div>`;
+
+  const note = $('#note');
+  if (!smaller) {
+    note.hidden = false;
+    note.textContent = 'Video ini sepertinya sudah terkompres dengan baik. Coba tingkat Maksimal untuk hasil lebih kecil.';
+  } else note.hidden = true;
+
+  const sameRes = a.width === b.width && a.height === b.height;
+  const rows = [
+    ['Format', (a.container || '').toUpperCase(), 'MP4'],
+    ['Ukuran', fmtBytes(a.size), fmtBytes(b.size)],
+    ['Resolusi', `${a.width} × ${a.height}`, `${b.width} × ${b.height}`, sameRes ? 'same' : ''],
+    ['Frame rate', `${a.fps} fps`, `${b.fps} fps`],
+    ['Codec video', codecName(a.videoCodec), codecName(b.videoCodec)],
+    ['Bitrate rata-rata', fmtBitrate(a.totalBitrate), fmtBitrate(b.totalBitrate)],
+    ['Codec audio', codecName(a.audioCodec), codecName(b.audioCodec)],
+    ['Durasi', fmtTime(a.duration), fmtTime(b.duration)],
+  ];
+  const tb = $('#cmp'); tb.replaceChildren();
+  for (const [k, x, y, cls] of rows) {
+    const tr = document.createElement('tr');
+    const th = document.createElement('th'); th.scope = 'row'; th.textContent = k;
+    const t1 = document.createElement('td'); t1.textContent = x;
+    const t2 = document.createElement('td'); t2.textContent = cls === 'same' ? `${y} (sama)` : y;
+    if (cls) t2.className = cls;
+    tr.append(th, t1, t2); tb.append(tr);
+  }
+}
+
+/* ───── gagal, batal, ulang ───── */
+function fail(msg) {
+  resetEngine();
+  $('#status').textContent = 'Proses berhenti';
+  $('#runErr').textContent = msg; $('#runErr').hidden = false;
+  $('#cancel').hidden = true; $('#retry').hidden = false;
+  const active = document.querySelector('#steps li[data-state="active"]');
+  if (active) active.dataset.state = 'wait';
+}
+function backToForm() {
+  run.hidden = true; result.hidden = true; setup.hidden = false;
+  $('#player').removeAttribute('src'); $('#player').load();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('#cancel').onclick = () => {
+  cancelled = true;
+  abortCtl && abortCtl.abort();
+  resetEngine();
+  backToForm();
+};
+$('#retry').onclick = backToForm;
+$('#again').onclick = () => {
+  pick(null); $('#file').value = ''; $('#url').value = '';
+  if (outUrl) { URL.revokeObjectURL(outUrl); outUrl = null; }
+  backToForm();
+};
+</script>
+</body>
+</html>
